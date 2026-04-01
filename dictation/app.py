@@ -12,8 +12,10 @@ sys.path.insert(0, APP_DIR)
 # Ensure Homebrew tools are in PATH (for potential system dependencies)
 os.environ["PATH"] = "/opt/homebrew/bin:/usr/local/bin:" + os.environ.get("PATH", "")
 
-# Log to file so we can debug .app launches
-LOG_FILE = os.path.join(APP_DIR, "talk2txt.log")
+# Log to writable location (APP_DIR may be inside read-only .app bundle)
+LOG_DIR = os.path.expanduser("~/.config/talk2txt")
+os.makedirs(LOG_DIR, exist_ok=True)
+LOG_FILE = os.path.join(LOG_DIR, "talk2txt.log")
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(message)s",
