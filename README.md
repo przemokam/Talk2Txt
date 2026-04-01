@@ -12,12 +12,21 @@ Powered by [NVIDIA Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-
 - **Fast** — 20x+ realtime on Apple Silicon (5 seconds of audio transcribed in ~0.25s)
 - **Lightweight** — 600M parameter model, ~2 GB RAM
 - **Works everywhere** — pastes text into any focused application
+- **Configurable** — change hotkey, select microphone, toggle sound feedback from the menu bar
+- **Zero dependencies** — standalone .app, no Python or Homebrew needed
 
 ## Requirements
 
 - macOS (Apple Silicon — M1/M2/M3/M4)
+
+### Standalone .app (recommended)
+
+Download `Talk2Txt.app` from [Releases](https://github.com/przemokam/Talk2Txt/releases), move to `/Applications`, and launch. No Python or Homebrew needed.
+
+### From source
+
 - Python 3.12 or 3.13
-- [Homebrew](https://brew.sh) (for `portaudio` and `ffmpeg`)
+- [Homebrew](https://brew.sh) (for `portaudio`)
 
 ## Installation
 
@@ -25,7 +34,7 @@ Powered by [NVIDIA Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-
 
 ```bash
 # Install system dependencies
-brew install portaudio ffmpeg
+brew install portaudio
 
 # Clone the repo
 git clone git@github.com:przemokam/Talk2Txt.git
@@ -47,7 +56,7 @@ source dictation/.venv/bin/activate
 pip install pyinstaller
 cd dictation
 pyinstaller --windowed --name Talk2Txt \
-  --hidden-import recorder --hidden-import transcriber --hidden-import paster \
+  --hidden-import recorder --hidden-import transcriber --hidden-import paster --hidden-import config \
   --hidden-import mlx --hidden-import mlx.core --hidden-import mlx_metal \
   --hidden-import parakeet_mlx --hidden-import AppKit --hidden-import ApplicationServices \
   --collect-all mlx --collect-all mlx_metal --collect-all parakeet_mlx \
@@ -62,9 +71,11 @@ cp -R dist/Talk2Txt.app /Applications/
 ## Usage
 
 1. Launch Talk2Txt — a 🎤 icon appears in the menu bar
-2. Press **Ctrl+Shift+D** to start recording (icon changes to ⏺)
+2. Press **Ctrl+Shift+D** to start recording (icon changes to ⏺, you'll hear a "tink")
 3. Speak in any supported language
 4. Press **Ctrl+Shift+D** again to stop — text is transcribed and pasted into the active application
+
+Click the 🎤 icon to access settings: change hotkey, select microphone, toggle sound feedback.
 
 The model downloads automatically on first run (~2.3 GB, stored in `~/.cache/huggingface/`).
 
@@ -89,9 +100,10 @@ bg, cs, da, de, el, **en**, es, et, fi, fr, hr, hu, it, lt, lv, mt, nl, **pl**, 
 ## How It Works
 
 1. `recorder.py` — captures audio from the microphone (16kHz mono via sounddevice)
-2. `transcriber.py` — transcribes audio using Parakeet TDT via MLX (lazy-loaded, stays in memory)
+2. `transcriber.py` — transcribes audio using Parakeet TDT via MLX (no ffmpeg needed, feeds audio directly to model)
 3. `paster.py` — copies text to clipboard (NSPasteboard) and simulates Cmd+V (CGEvent)
-4. `app.py` — menu bar app (rumps) with global hotkey (pynput) that orchestrates the flow
+4. `config.py` — settings management (JSON, persisted to `~/.config/talk2txt/settings.json`)
+5. `app.py` — menu bar app (rumps) with global hotkey (pynput), settings UI, and orchestration
 
 ## Acknowledgments
 

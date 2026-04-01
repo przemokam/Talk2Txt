@@ -9,7 +9,7 @@ import logging
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, APP_DIR)
 
-# Ensure ffmpeg and other Homebrew tools are in PATH (needed for .app bundles)
+# Ensure Homebrew tools are in PATH (for potential system dependencies)
 os.environ["PATH"] = "/opt/homebrew/bin:/usr/local/bin:" + os.environ.get("PATH", "")
 
 # Log to file so we can debug .app launches
