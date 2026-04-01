@@ -230,9 +230,25 @@ class DictationApp(rumps.App):
     # --- Model preload ---
 
     def _preload_model(self):
-        self.transcriber._ensure_model()
-        self._set_status(ICON_IDLE, "Ready")
-        rumps.notification("Talk2Txt", "", "Model loaded. Ready to dictate!")
+        model_cache = os.path.expanduser(
+            "~/.cache/huggingface/hub/models--mlx-community--parakeet-tdt-0.6b-v3"
+        )
+        if not os.path.exists(model_cache):
+            self._set_status(ICON_PROCESSING, "Downloading model (~2.3 GB)...")
+            rumps.notification(
+                "Talk2Txt", "First run setup",
+                "Downloading speech recognition model (~2.3 GB). This only happens once.",
+            )
+            log.info("Model not cached — downloading from HuggingFace...")
+
+        try:
+            self.transcriber._ensure_model()
+            self._set_status(ICON_IDLE, "Ready")
+            rumps.notification("Talk2Txt", "", "Model loaded. Ready to dictate!")
+        except Exception as e:
+            log.error(f"Model load error: {e}", exc_info=True)
+            self._set_status(ICON_IDLE, "Error: model failed to load")
+            rumps.notification("Talk2Txt", "Error", f"Failed to load model: {e}")
 
 
 def check_and_prompt_accessibility():
