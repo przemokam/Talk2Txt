@@ -4,6 +4,17 @@ Local, offline speech-to-text dictation for macOS. Press a hotkey, speak, and th
 
 Powered by [NVIDIA Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) running natively on Apple Silicon via [MLX](https://github.com/ml-explore/mlx).
 
+![Talk2Txt menu bar](screenshot.png)
+
+## Compatibility
+
+| Platform | Status |
+|---|---|
+| macOS (Apple Silicon — M1/M2/M3/M4) | **Supported** |
+| macOS (Intel) | Not supported (requires Apple Silicon for MLX) |
+| Windows | Not yet supported — planned for a future release |
+| Linux | Not yet supported |
+
 ## Features
 
 - **Fully local** — no internet required after first model download (~2.3 GB)
@@ -15,20 +26,17 @@ Powered by [NVIDIA Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-
 - **Configurable** — change hotkey, select microphone, toggle sound feedback from the menu bar
 - **Zero dependencies** — standalone .app, no Python or Homebrew needed
 
-## Requirements
-
-- macOS (Apple Silicon — M1/M2/M3/M4)
+## Installation
 
 ### Standalone .app (recommended)
 
-Download `Talk2Txt.app` from [Releases](https://github.com/przemokam/Talk2Txt/releases), move to `/Applications`, and launch. No Python or Homebrew needed.
+1. Download `Talk2Txt-1.1.0.dmg` from [Releases](https://github.com/przemokam/Talk2Txt/releases)
+2. Open the DMG and drag **Talk2Txt** to **Applications**
+3. Launch Talk2Txt from Spotlight (Cmd+Space → "Talk2Txt") or from Applications
+4. Grant **Accessibility** and **Input Monitoring** permissions when prompted
+5. The speech model (~2.3 GB) downloads automatically on first launch — this only happens once
 
-### From source
-
-- Python 3.12 or 3.13
-- [Homebrew](https://brew.sh) (for `portaudio`)
-
-## Installation
+No Python, Homebrew, or any other dependencies needed.
 
 ### From source
 
@@ -37,7 +45,7 @@ Download `Talk2Txt.app` from [Releases](https://github.com/przemokam/Talk2Txt/re
 brew install portaudio
 
 # Clone the repo
-git clone git@github.com:przemokam/Talk2Txt.git
+git clone https://github.com/przemokam/Talk2Txt.git
 cd Talk2Txt
 
 # Create virtual environment and install dependencies
@@ -70,7 +78,7 @@ cp -R dist/Talk2Txt.app /Applications/
 
 ## Usage
 
-1. Launch Talk2Txt — a 🎤 icon appears in the menu bar
+1. Launch Talk2Txt — a 🎤 icon appears in the **menu bar** (top-right of the screen, see screenshot above)
 2. Press **Ctrl+Shift+D** to start recording (icon changes to ⏺, you'll hear a "tink")
 3. Speak in any supported language
 4. Press **Ctrl+Shift+D** again to stop — text is transcribed and pasted into the active application
@@ -100,7 +108,7 @@ bg, cs, da, de, el, **en**, es, et, fi, fr, hr, hu, it, lt, lv, mt, nl, **pl**, 
 ## How It Works
 
 1. `recorder.py` — captures audio from the microphone (16kHz mono via sounddevice)
-2. `transcriber.py` — transcribes audio using Parakeet TDT via MLX (no ffmpeg needed, feeds audio directly to model)
+2. `transcriber.py` — transcribes audio using Parakeet TDT via MLX (feeds audio directly to model, no ffmpeg needed)
 3. `paster.py` — copies text to clipboard (NSPasteboard) and simulates Cmd+V (CGEvent)
 4. `config.py` — settings management (JSON, persisted to `~/.config/talk2txt/settings.json`)
 5. `app.py` — menu bar app (rumps) with global hotkey (pynput), settings UI, and orchestration
