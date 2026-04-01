@@ -34,8 +34,10 @@ from recorder import Recorder
 from transcriber import Transcriber
 from paster import paste_text
 import config
+import updater
+import autostart
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 ICON_IDLE = "🎤"
 ICON_RECORDING = "⏺"
@@ -67,13 +69,21 @@ class DictationApp(rumps.App):
         )
         self._sound_item.state = self.cfg.get("sound_feedback", True)
 
+        self._autostart_item = rumps.MenuItem(
+            "Start at Login",
+            callback=self._toggle_autostart,
+        )
+        self._autostart_item.state = autostart.is_enabled()
+
         self.menu = [
             self._status_item,
             None,
             self._hotkey_menu,
             self._mic_menu,
             self._sound_item,
+            self._autostart_item,
             None,
+            rumps.MenuItem("Check for Updates", callback=self._check_updates),
             rumps.MenuItem("About Talk2Txt", callback=self._show_about),
             None,
         ]
@@ -139,6 +149,39 @@ class DictationApp(rumps.App):
         self.cfg["sound_feedback"] = sender.state
         config.save(self.cfg)
 
+    def _toggle_autostart(self, sender):
+        if sender.state:
+            autostart.disable()
+            sender.state = False
+            rumps.notification("Talk2Txt", "", "Auto-start disabled")
+        else:
+            if autostart.enable():
+                sender.state = True
+                rumps.notification("Talk2Txt", "", "Talk2Txt will start automatically at login")
+            else:
+                rumps.notification("Talk2Txt", "Error",
+                    "Could not enable auto-start. Make sure Talk2Txt.app is in /Applications.")
+
+    def _check_updates(self, _):
+        self._set_status(ICON_PROCESSING, "Checking for updates...")
+        threading.Thread(target=self._do_check_updates, daemon=True).start()
+
+    def _do_check_updates(self):
+        release = updater.check_for_update(VERSION)
+        if release:
+            self._set_status(ICON_IDLE, f"Update available: v{release['version']}")
+            response = rumps.alert(
+                title=f"Talk2Txt v{release['version']} available",
+                message=f"You have v{VERSION}.\n\nOpen the download page?",
+                ok="Download",
+                cancel="Later",
+            )
+            if response == 1:  # OK/Download
+                updater.open_release_page(release["url"])
+        else:
+            self._set_status(ICON_IDLE, "Ready (up to date)")
+            rumps.notification("Talk2Txt", "", f"You're up to date (v{VERSION})")
+
     def _show_about(self, _):
         rumps.alert(
             title=f"Talk2Txt v{VERSION}",
@@ -151,8 +194,7 @@ class DictationApp(rumps.App):
                 "Model: NVIDIA Parakeet TDT 0.6B v3 (MLX)\n\n"
                 "Requirements:\n"
                 "• macOS with Apple Silicon (M1/M2/M3/M4)\n"
-                "• Accessibility & Input Monitoring permissions\n"
-                "• ffmpeg (brew install ffmpeg)"
+                "• Accessibility & Input Monitoring permissions"
             ),
             ok="OK",
         )
@@ -273,12 +315,25 @@ def check_and_prompt_accessibility():
     ])
 
 
+def _background_update_check():
+    """Silent update check on startup — just notify if available."""
+    release = updater.check_for_update(VERSION)
+    if release:
+        log.info(f"Update available: v{release['version']}")
+        rumps.notification(
+            "Talk2Txt Update Available",
+            f"v{release['version']}",
+            "Click 'Check for Updates' in the menu to download.",
+        )
+
+
 def main():
-    log.info("Starting Talk2Txt...")
+    log.info(f"Starting Talk2Txt v{VERSION}...")
     app = DictationApp()
     app.start_hotkey_listener()
     threading.Thread(target=app._preload_model, daemon=True).start()
     threading.Timer(2.0, check_and_prompt_accessibility).start()
+    threading.Timer(30.0, _background_update_check).start()
     hotkey_label = config.get_hotkey_label(app.cfg["hotkey"])
     log.info(f"Menu bar ready. Hotkey: {hotkey_label}")
     app.run()
