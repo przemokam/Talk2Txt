@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="icon.png" alt="Talk2Txt" width="128">
+</p>
+
 # Talk2Txt
 
 Local, offline speech-to-text dictation for macOS. Press a hotkey, speak, and the transcribed text is pasted into any application.
