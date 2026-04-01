@@ -75,13 +75,12 @@ class DictationApp(rumps.App):
             None,
         ]
 
-        self._build_hotkey_submenu()
-        self._build_mic_submenu()
+        self._populate_hotkey_submenu()
+        self._populate_mic_submenu()
 
     # --- Menu builders ---
 
-    def _build_hotkey_submenu(self):
-        self._hotkey_menu.clear()
+    def _populate_hotkey_submenu(self):
         current = self.cfg["hotkey"]
         for label, value in config.HOTKEY_OPTIONS.items():
             item = rumps.MenuItem(label, callback=self._change_hotkey)
@@ -89,11 +88,9 @@ class DictationApp(rumps.App):
             item.state = value == current
             self._hotkey_menu.add(item)
 
-    def _build_mic_submenu(self):
-        self._mic_menu.clear()
+    def _populate_mic_submenu(self):
         current_device = self.cfg.get("microphone")
 
-        # Default option
         default_item = rumps.MenuItem("System Default", callback=self._change_mic)
         default_item._device_index = None
         default_item.state = current_device is None
@@ -101,7 +98,6 @@ class DictationApp(rumps.App):
 
         self._mic_menu.add(rumps.separator)
 
-        # List input devices
         devices = sd.query_devices()
         for i, dev in enumerate(devices):
             if dev["max_input_channels"] > 0:
@@ -116,7 +112,10 @@ class DictationApp(rumps.App):
         new_hotkey = sender._hotkey_value
         self.cfg["hotkey"] = new_hotkey
         config.save(self.cfg)
-        self._build_hotkey_submenu()
+        # Update checkmarks
+        for item in self._hotkey_menu.values():
+            if hasattr(item, '_hotkey_value'):
+                item.state = item._hotkey_value == new_hotkey
         self._restart_hotkey_listener()
         label = config.get_hotkey_label(new_hotkey)
         rumps.notification("Talk2Txt", "", f"Hotkey changed to {label}")
@@ -126,9 +125,11 @@ class DictationApp(rumps.App):
         self.cfg["microphone"] = new_device
         config.save(self.cfg)
         self.recorder = Recorder(device=new_device)
-        self._build_mic_submenu()
-        name = sender.title
-        rumps.notification("Talk2Txt", "", f"Microphone: {name}")
+        # Update checkmarks
+        for item in self._mic_menu.values():
+            if hasattr(item, '_device_index'):
+                item.state = item._device_index == new_device
+        rumps.notification("Talk2Txt", "", f"Microphone: {sender.title}")
 
     def _toggle_sound(self, sender):
         sender.state = not sender.state
