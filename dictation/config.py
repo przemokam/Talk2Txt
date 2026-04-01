@@ -25,14 +25,22 @@ HOTKEY_OPTIONS = {
 }
 
 
+_VALID_HOTKEYS = set(HOTKEY_OPTIONS.values())
+
+
 def load() -> dict:
-    """Load settings from disk, falling back to defaults."""
+    """Load settings from disk, falling back to defaults. Validates values."""
     config = DEFAULTS.copy()
     try:
         with open(CONFIG_FILE) as f:
             saved = json.load(f)
-        config.update(saved)
-    except (FileNotFoundError, json.JSONDecodeError):
+        if saved.get("hotkey") in _VALID_HOTKEYS:
+            config["hotkey"] = saved["hotkey"]
+        if isinstance(saved.get("microphone"), (int, type(None))):
+            config["microphone"] = saved["microphone"]
+        if isinstance(saved.get("sound_feedback"), bool):
+            config["sound_feedback"] = saved["sound_feedback"]
+    except (FileNotFoundError, json.JSONDecodeError, ValueError):
         pass
     return config
 

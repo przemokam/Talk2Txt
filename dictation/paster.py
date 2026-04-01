@@ -30,3 +30,7 @@ def paste_text(text: str):
     event_up = CGEventCreateKeyboardEvent(None, V_KEYCODE, False)
     CGEventSetFlags(event_up, kCGEventFlagMaskCommand)
     CGEventPost(kCGHIDEventTap, event_up)
+
+    # Clear clipboard after paste to avoid leaking transcribed text
+    time.sleep(0.3)
+    pb.clearContents()

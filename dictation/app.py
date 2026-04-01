@@ -16,10 +16,11 @@ os.environ["PATH"] = "/opt/homebrew/bin:/usr/local/bin:" + os.environ.get("PATH"
 LOG_DIR = os.path.expanduser("~/.config/talk2txt")
 os.makedirs(LOG_DIR, exist_ok=True)
 LOG_FILE = os.path.join(LOG_DIR, "talk2txt.log")
+from logging.handlers import RotatingFileHandler
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(message)s",
-    handlers=[logging.FileHandler(LOG_FILE), logging.StreamHandler()],
+    handlers=[RotatingFileHandler(LOG_FILE, maxBytes=500_000, backupCount=1), logging.StreamHandler()],
 )
 log = logging.getLogger("talk2txt")
 
@@ -198,7 +199,7 @@ class DictationApp(rumps.App):
             log.info(f"Transcription start, {len(audio)} samples, {len(audio)/16000:.1f}s audio")
             text = self.transcriber.transcribe(audio)
             elapsed = time.time() - t0
-            log.info(f"Transcription done in {elapsed:.1f}s: '{text}'")
+            log.info(f"Transcription done in {elapsed:.1f}s: {len(text)} chars")
 
             if text:
                 paste_text(text)
