@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# macOS
+.DS_Store
+*.app/
+
+# Development / IDE
+.claude/
+.mcp.json
+CLAUDE.md
+TODO.md
+
+# Logs and test files
+*.log
+test_recording.wav
+
+# Secrets
+.env
+.do/
