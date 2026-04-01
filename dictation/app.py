@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Talk2Txt — local dictation app. Sits in the menu bar, toggle recording with Ctrl+Shift+D."""
+"""Talk2Txt — local dictation app. Sits in the menu bar, toggle recording with a hotkey."""
 
 import os
 import sys
@@ -25,43 +25,141 @@ import subprocess
 import threading
 import time
 import rumps
+import sounddevice as sd
 from pynput import keyboard
 from recorder import Recorder
 from transcriber import Transcriber
 from paster import paste_text
+import config
 
-HOTKEY = "<ctrl>+<shift>+d"
+VERSION = "1.1.0"
 
 ICON_IDLE = "🎤"
 ICON_RECORDING = "⏺"
 ICON_PROCESSING = "⏳"
 
 
+def play_sound(name: str):
+    """Play a macOS system sound (non-blocking)."""
+    path = f"/System/Library/Sounds/{name}.aiff"
+    if os.path.exists(path):
+        subprocess.Popen(["afplay", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 class DictationApp(rumps.App):
     def __init__(self):
         super().__init__("Talk2Txt", title=ICON_IDLE)
+        self.cfg = config.load()
+        self.recorder = Recorder(device=self.cfg.get("microphone"))
+        self.transcriber = Transcriber()
+        self._hotkey_listener = None
+
+        # Build menu
+        self._status_item = rumps.MenuItem("Status: Starting...")
+        self._hotkey_menu = rumps.MenuItem("Hotkey")
+        self._mic_menu = rumps.MenuItem("Microphone")
+        self._sound_item = rumps.MenuItem(
+            "Sound Feedback",
+            callback=self._toggle_sound,
+        )
+        self._sound_item.state = self.cfg.get("sound_feedback", True)
+
         self.menu = [
-            rumps.MenuItem("Status: Ready"),
+            self._status_item,
             None,
-            rumps.MenuItem("Preload model", callback=self._on_preload),
+            self._hotkey_menu,
+            self._mic_menu,
+            self._sound_item,
+            None,
+            rumps.MenuItem("About Talk2Txt", callback=self._show_about),
             None,
         ]
-        self.recorder = Recorder()
-        self.transcriber = Transcriber()
-        self._status_item = self.menu["Status: Ready"]
+
+        self._build_hotkey_submenu()
+        self._build_mic_submenu()
+
+    # --- Menu builders ---
+
+    def _build_hotkey_submenu(self):
+        self._hotkey_menu.clear()
+        current = self.cfg["hotkey"]
+        for label, value in config.HOTKEY_OPTIONS.items():
+            item = rumps.MenuItem(label, callback=self._change_hotkey)
+            item._hotkey_value = value
+            item.state = value == current
+            self._hotkey_menu.add(item)
+
+    def _build_mic_submenu(self):
+        self._mic_menu.clear()
+        current_device = self.cfg.get("microphone")
+
+        # Default option
+        default_item = rumps.MenuItem("System Default", callback=self._change_mic)
+        default_item._device_index = None
+        default_item.state = current_device is None
+        self._mic_menu.add(default_item)
+
+        self._mic_menu.add(rumps.separator)
+
+        # List input devices
+        devices = sd.query_devices()
+        for i, dev in enumerate(devices):
+            if dev["max_input_channels"] > 0:
+                item = rumps.MenuItem(dev["name"], callback=self._change_mic)
+                item._device_index = i
+                item.state = current_device == i
+                self._mic_menu.add(item)
+
+    # --- Settings callbacks ---
+
+    def _change_hotkey(self, sender):
+        new_hotkey = sender._hotkey_value
+        self.cfg["hotkey"] = new_hotkey
+        config.save(self.cfg)
+        self._build_hotkey_submenu()
+        self._restart_hotkey_listener()
+        label = config.get_hotkey_label(new_hotkey)
+        rumps.notification("Talk2Txt", "", f"Hotkey changed to {label}")
+
+    def _change_mic(self, sender):
+        new_device = sender._device_index
+        self.cfg["microphone"] = new_device
+        config.save(self.cfg)
+        self.recorder = Recorder(device=new_device)
+        self._build_mic_submenu()
+        name = sender.title
+        rumps.notification("Talk2Txt", "", f"Microphone: {name}")
+
+    def _toggle_sound(self, sender):
+        sender.state = not sender.state
+        self.cfg["sound_feedback"] = sender.state
+        config.save(self.cfg)
+
+    def _show_about(self, _):
+        rumps.alert(
+            title=f"Talk2Txt v{VERSION}",
+            message=(
+                "Local, offline speech-to-text dictation for macOS.\n\n"
+                f"Hotkey: {config.get_hotkey_label(self.cfg['hotkey'])}\n"
+                "Press the hotkey to start recording, press again to stop and paste.\n\n"
+                "Supported languages: 25 European languages with auto-detection\n"
+                "(English, Polish, German, French, Spanish, and more)\n\n"
+                "Model: NVIDIA Parakeet TDT 0.6B v3 (MLX)\n\n"
+                "Requirements:\n"
+                "• macOS with Apple Silicon (M1/M2/M3/M4)\n"
+                "• Accessibility & Input Monitoring permissions\n"
+                "• ffmpeg (brew install ffmpeg)"
+            ),
+            ok="OK",
+        )
+
+    # --- Status ---
 
     def _set_status(self, icon: str, status: str):
         self.title = icon
         self._status_item.title = f"Status: {status}"
 
-    def _on_preload(self, _):
-        self._set_status(ICON_PROCESSING, "Loading model...")
-        threading.Thread(target=self._preload_model, daemon=True).start()
-
-    def _preload_model(self):
-        self.transcriber._ensure_model()
-        self._set_status(ICON_IDLE, "Ready")
-        rumps.notification("Talk2Txt", "", "Model loaded. Ready to dictate!")
+    # --- Recording flow ---
 
     def _toggle_recording(self):
         if self.recorder.is_recording:
@@ -70,14 +168,21 @@ class DictationApp(rumps.App):
             self._start_recording()
 
     def _start_recording(self):
-        log.info("Nagrywanie START")
+        log.info("Recording START")
         self.recorder.start()
         self._set_status(ICON_RECORDING, "Recording...")
+        if self.cfg.get("sound_feedback"):
+            play_sound("Tink")
 
     def _stop_and_transcribe(self):
         audio = self.recorder.stop()
-        log.info(f"Nagrywanie STOP, samples={len(audio) if audio is not None else 0}")
-        if audio is None or len(audio) < 1600:
+        samples = len(audio) if audio is not None else 0
+        log.info(f"Recording STOP, samples={samples}")
+
+        if self.cfg.get("sound_feedback"):
+            play_sound("Pop")
+
+        if audio is None or samples < 1600:
             self._set_status(ICON_IDLE, "Ready")
             return
 
@@ -87,29 +192,44 @@ class DictationApp(rumps.App):
     def _transcribe_and_paste(self, audio):
         try:
             t0 = time.time()
-            log.info(f"Transkrypcja start, {len(audio)} samples, {len(audio)/16000:.1f}s audio")
+            log.info(f"Transcription start, {len(audio)} samples, {len(audio)/16000:.1f}s audio")
             text = self.transcriber.transcribe(audio)
             elapsed = time.time() - t0
-            log.info(f"Transkrypcja done w {elapsed:.1f}s: '{text}'")
+            log.info(f"Transcription done in {elapsed:.1f}s: '{text}'")
 
             if text:
-                log.info("Wklejanie tekstu...")
                 paste_text(text)
-                log.info("Wklejanie done")
                 self._set_status(ICON_IDLE, f"Ready ({elapsed:.1f}s, {len(audio)/16000:.0f}s audio)")
             else:
-                log.info("Pusty tekst — no speech")
                 self._set_status(ICON_IDLE, "Ready (no speech)")
         except Exception as e:
-            log.error(f"BŁĄD: {e}", exc_info=True)
+            log.error(f"Error: {e}", exc_info=True)
             self._set_status(ICON_IDLE, f"Error: {e}")
 
+    # --- Hotkey listener ---
+
     def start_hotkey_listener(self):
+        hotkey = self.cfg["hotkey"]
+        log.info(f"Hotkey listener: {hotkey}")
+
         def on_activate():
             threading.Thread(target=self._toggle_recording, daemon=True).start()
 
-        listener = keyboard.GlobalHotKeys({HOTKEY: on_activate})
-        listener.start()
+        self._hotkey_listener = keyboard.GlobalHotKeys({hotkey: on_activate})
+        self._hotkey_listener.start()
+
+    def _restart_hotkey_listener(self):
+        if self._hotkey_listener:
+            self._hotkey_listener.stop()
+            self._hotkey_listener = None
+        self.start_hotkey_listener()
+
+    # --- Model preload ---
+
+    def _preload_model(self):
+        self.transcriber._ensure_model()
+        self._set_status(ICON_IDLE, "Ready")
+        rumps.notification("Talk2Txt", "", "Model loaded. Ready to dictate!")
 
 
 def check_and_prompt_accessibility():
@@ -134,18 +254,13 @@ def check_and_prompt_accessibility():
 
 
 def main():
-    log.info("1. Tworzenie app...")
+    log.info("Starting Talk2Txt...")
     app = DictationApp()
-    log.info("2. Start hotkey listener...")
-    try:
-        app.start_hotkey_listener()
-    except Exception as e:
-        log.error(f"HOTKEY ERROR: {e}")
-    log.info("3. Preload model...")
+    app.start_hotkey_listener()
     threading.Thread(target=app._preload_model, daemon=True).start()
-    # Check permissions after short delay (so notification system is ready)
     threading.Timer(2.0, check_and_prompt_accessibility).start()
-    log.info(f"4. Starting menu bar. Hotkey: {HOTKEY}")
+    hotkey_label = config.get_hotkey_label(app.cfg["hotkey"])
+    log.info(f"Menu bar ready. Hotkey: {hotkey_label}")
     app.run()
 
 

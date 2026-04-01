@@ -8,8 +8,9 @@ import threading
 class Recorder:
     """Records audio from the microphone. Thread-safe start/stop."""
 
-    def __init__(self, sample_rate: int = 16000):
+    def __init__(self, sample_rate: int = 16000, device: int | None = None):
         self.sample_rate = sample_rate
+        self.device = device
         self._chunks: list[np.ndarray] = []
         self._stream: sd.InputStream | None = None
         self._lock = threading.Lock()
@@ -27,6 +28,7 @@ class Recorder:
                 samplerate=self.sample_rate,
                 channels=1,
                 dtype="float32",
+                device=self.device,
                 callback=self._callback,
             )
             self._stream.start()
