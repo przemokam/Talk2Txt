@@ -42,6 +42,8 @@ Powered by [NVIDIA Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-
 
 No Python, Homebrew, or any other dependencies needed.
 
+> **Note:** The app is self-signed, not notarized by Apple. On first launch, macOS may show a warning. Right-click the app → **Open** → **Open Anyway** to proceed. This only happens once.
+
 ### From source
 
 ```bash
