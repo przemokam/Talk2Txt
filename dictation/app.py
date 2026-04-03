@@ -37,7 +37,7 @@ import config
 import updater
 import autostart
 
-VERSION = "1.3.0"
+VERSION = "1.3.1"
 
 ICON_IDLE = "🎤"
 ICON_RECORDING = "⏺"
@@ -58,6 +58,7 @@ class DictationApp(rumps.App):
         self.recorder = Recorder(device=self.cfg.get("microphone"))
         self.transcriber = Transcriber()
         self._hotkey_listener = None
+        self._pending_release = None
 
         # Build menu
         self._status_item = rumps.MenuItem("Status: Starting...")
@@ -163,24 +164,31 @@ class DictationApp(rumps.App):
                     "Could not enable auto-start. Make sure Talk2Txt.app is in /Applications.")
 
     def _check_updates(self, _):
+        if self._pending_release:
+            updater.open_release_page(self._pending_release["url"])
+            self._pending_release = None
+            return
         self._set_status(ICON_PROCESSING, "Checking for updates...")
         threading.Thread(target=self._do_check_updates, daemon=True).start()
 
     def _do_check_updates(self):
-        release = updater.check_for_update(VERSION)
-        if release:
-            self._set_status(ICON_IDLE, f"Update available: v{release['version']}")
-            response = rumps.alert(
-                title=f"Talk2Txt v{release['version']} available",
-                message=f"You have v{VERSION}.\n\nOpen the download page?",
-                ok="Download",
-                cancel="Later",
-            )
-            if response == 1:  # OK/Download
-                updater.open_release_page(release["url"])
-        else:
-            self._set_status(ICON_IDLE, "Ready (up to date)")
-            rumps.notification("Talk2Txt", "", f"You're up to date (v{VERSION})")
+        try:
+            release = updater.check_for_update(VERSION)
+            log.info(f"Update check: {'v' + release['version'] if release else 'up to date'}")
+            if release:
+                self._set_status(ICON_IDLE, f"Update available: v{release['version']}")
+                rumps.notification(
+                    "Talk2Txt",
+                    f"v{release['version']} available",
+                    "Click 'Check for Updates' again to download.",
+                )
+                self._pending_release = release
+            else:
+                self._set_status(ICON_IDLE, "Ready (up to date)")
+                rumps.notification("Talk2Txt", "", f"You're up to date (v{VERSION})")
+        except Exception as e:
+            log.error(f"Update check error: {e}", exc_info=True)
+            self._set_status(ICON_IDLE, "Ready")
 
     def _show_about(self, _):
         rumps.alert(
