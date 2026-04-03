@@ -44,4 +44,6 @@ class Recorder:
             self.is_recording = False
             if not self._chunks:
                 return None
-            return np.concatenate(self._chunks, axis=0).flatten()
+            audio = np.concatenate(self._chunks, axis=0).flatten()
+            self._chunks = []  # free chunk references immediately
+            return audio

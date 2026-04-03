@@ -1,5 +1,6 @@
 """Speech-to-text transcription using Parakeet TDT via MLX."""
 
+import gc
 import os
 import numpy as np
 
@@ -35,7 +36,16 @@ class Transcriber:
             import soxr
             audio_resampled = soxr.resample(audio, sample_rate, model_sr)
             audio_mx = mx.array(audio_resampled).astype(mx.float32)
+            del audio_resampled
 
         mel = get_logmel(audio_mx, self._model.preprocessor_config)
+        del audio_mx
         result = self._model.generate(mel)[0]
-        return result.text.strip()
+        text = result.text.strip()
+        del mel, result
+
+        # Free MLX Metal memory cache and run garbage collection
+        mx.metal.clear_cache()
+        gc.collect()
+
+        return text

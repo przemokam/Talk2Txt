@@ -238,14 +238,16 @@ class DictationApp(rumps.App):
     def _transcribe_and_paste(self, audio):
         try:
             t0 = time.time()
-            log.info(f"Transcription start, {len(audio)} samples, {len(audio)/16000:.1f}s audio")
+            audio_len = len(audio)
+            log.info(f"Transcription start, {audio_len} samples, {audio_len/16000:.1f}s audio")
             text = self.transcriber.transcribe(audio)
+            del audio  # free audio buffer before paste
             elapsed = time.time() - t0
             log.info(f"Transcription done in {elapsed:.1f}s: {len(text)} chars")
 
             if text:
                 paste_text(text)
-                self._set_status(ICON_IDLE, f"Ready ({elapsed:.1f}s, {len(audio)/16000:.0f}s audio)")
+                self._set_status(ICON_IDLE, f"Ready ({elapsed:.1f}s, {audio_len/16000:.0f}s audio)")
             else:
                 self._set_status(ICON_IDLE, "Ready (no speech)")
         except Exception as e:
