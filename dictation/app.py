@@ -37,7 +37,7 @@ import config
 import updater
 import autostart
 
-VERSION = "1.3.1"
+VERSION = "1.3.2"
 
 ICON_IDLE = "🎤"
 ICON_RECORDING = "⏺"

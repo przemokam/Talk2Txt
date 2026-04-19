@@ -16,9 +16,9 @@ DEFAULTS = {
 HOTKEY_OPTIONS = {
     "Ctrl+Shift+D": "<ctrl>+<shift>+d",
     "Ctrl+Shift+R": "<ctrl>+<shift>+r",
-    "Ctrl+Shift+Space": "<ctrl>+<shift>+space",
+    "Ctrl+Shift+Space": "<ctrl>+<shift>+<space>",
     "Option+D": "<alt>+d",
-    "Option+Space": "<alt>+space",
+    "Option+Space": "<alt>+<space>",
     "F5": "<f5>",
     "F6": "<f6>",
     "F8": "<f8>",
@@ -27,6 +27,12 @@ HOTKEY_OPTIONS = {
 
 _VALID_HOTKEYS = set(HOTKEY_OPTIONS.values())
 
+# Migration: fix bare "space" → "<space>" in hotkeys from older configs
+_HOTKEY_MIGRATIONS = {
+    "<ctrl>+<shift>+space": "<ctrl>+<shift>+<space>",
+    "<alt>+space": "<alt>+<space>",
+}
+
 
 def load() -> dict:
     """Load settings from disk, falling back to defaults. Validates values."""
@@ -34,8 +40,10 @@ def load() -> dict:
     try:
         with open(CONFIG_FILE) as f:
             saved = json.load(f)
-        if saved.get("hotkey") in _VALID_HOTKEYS:
-            config["hotkey"] = saved["hotkey"]
+        hotkey = saved.get("hotkey", "")
+        hotkey = _HOTKEY_MIGRATIONS.get(hotkey, hotkey)
+        if hotkey in _VALID_HOTKEYS:
+            config["hotkey"] = hotkey
         if isinstance(saved.get("microphone"), (int, type(None))):
             config["microphone"] = saved["microphone"]
         if isinstance(saved.get("sound_feedback"), bool):
