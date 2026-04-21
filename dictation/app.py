@@ -37,7 +37,7 @@ import config
 import updater
 import autostart
 
-VERSION = "1.3.2"
+VERSION = "1.4.0"
 
 ICON_IDLE = "🎤"
 ICON_RECORDING = "⏺"
@@ -280,6 +280,40 @@ class DictationApp(rumps.App):
             self._hotkey_listener = None
         self.start_hotkey_listener()
 
+    # --- Wake from sleep ---
+
+    def start_wake_observer(self):
+        """Restart hotkey listener when macOS wakes from sleep."""
+        try:
+            import objc
+            from AppKit import NSWorkspace, NSWorkspaceDidWakeNotification
+            from Foundation import NSObject
+
+            app_ref = self  # prevent 'self' confusion inside ObjC class
+
+            class WakeObserver(NSObject):
+                def initWithApp_(self, app):
+                    self = objc.super(WakeObserver, self).init()
+                    if self is None:
+                        return None
+                    self.app = app
+                    return self
+
+                def onWake_(self, notification):
+                    log.info("System wake detected — restarting hotkey listener")
+                    self.app._restart_hotkey_listener()
+
+            self._wake_observer = WakeObserver.alloc().initWithApp_(app_ref)
+            NSWorkspace.sharedWorkspace().notificationCenter().addObserver_selector_name_object_(
+                self._wake_observer,
+                "onWake:",
+                NSWorkspaceDidWakeNotification,
+                None,
+            )
+            log.info("Wake observer registered")
+        except Exception as e:
+            log.warning(f"Could not register wake observer: {e}")
+
     # --- Model preload ---
 
     def _preload_model(self):
@@ -341,6 +375,7 @@ def main():
     log.info(f"Starting Talk2Txt v{VERSION}...")
     app = DictationApp()
     app.start_hotkey_listener()
+    app.start_wake_observer()
     threading.Thread(target=app._preload_model, daemon=True).start()
     threading.Timer(2.0, check_and_prompt_accessibility).start()
     threading.Timer(30.0, _background_update_check).start()
